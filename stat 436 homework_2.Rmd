@@ -1,0 +1,166 @@
+---
+title: "Homework 2: SHINY PORTFOLIO PROJECT"
+author: "Hyoungwoo Kim"
+output:
+  pdf_document:
+    latex_engine: xelatex
+date: "2025-02-24"
+header-includes:
+  - \usepackage{fontspec}
+---
+
+## Data Sources
+
+- **Netflix Data:** [netflix_title.csv](https://raw.githubusercontent.com/gud12dn/Stat_436_Homework/main/netflix_title.csv)  
+- **Shiny App Code:** [HW2.R (GitHub)](https://raw.githubusercontent.com/gud12dn/Stat_436_Homework/main/HW2.R)  
+- **Original Dataset from Kaggle:** [Kaggle Netflix Data](https://www.kaggle.com/datasets/example/netflix-usage)
+
+---
+
+**Introduction**
+
+Netflix is one of the most popular streaming services worldwide. With its growing number of users, understanding global usage patterns can give insights into which countries watch the most content and where Netflix is expanding the fastest.
+
+In this project, I built an interactive Shiny dashboard that allows users to explore Netflix's subscriber count and watch hours by country and year. The app provides an easy way to analyze trends and compare different regions.
+
+**Data Source**
+
+Since detailed Netflix usage data is not publicly available, I used a dataset sourced from Kaggle to analyze Netflix subscriber trends and watch hours across different countries. The dataset includes:
+
+Years: 2010 - 2024 Countries: 10 major Netflix markets Metrics: subscribers: Estimated number of Netflix subscribers per country (millions) watch_hours: Total watch hours in each country (billions)
+
+### **Interface Design**
+
+Features of the App This dashboard has two main components:
+
+**Interactive Bar Chart**:
+
+-   Users can select a year with a slider.
+
+-   Users can switch between Subscribers (millions) or Watch Hours (billions).
+
+-   The top 10 countries for the selected metric are displayed.
+
+-   The colors of the bars remain the same for each country, making it easier to compare.
+
+-   Hovering over bars shows exact values using tool tips.
+
+**Dynamic Data Table**:
+
+-   The table shows all available data for Netflix usage.
+
+-   It includes search and sorting functions, so users can easily find specific countries or years.
+
+-   Users can filter by year to see trends over time.
+
+**How the App Works**
+
+The app uses a sidebar for user controls:
+
+-   A drop-down menu to select Subscribers or Watch Hours
+
+-   A slider to select a year
+
+The main content is divided into two tabs:
+
+-   Top Countries (Bar Chart)
+
+-   Data Table
+
+**Reactive Graph Structure**
+
+Reactive Expressions
+
+- Most of the application’s interactivity is handled by the filtered_data() function.
+
+- If a user changes any input selection, filtered_data() updates the bar chart and data table dynamically.
+
+Dynamic Queries
+
+- Year: Filters the dataset to show only data for the selected year.
+
+- Country: Allows users to filter data to focus on specific Netflix markets.
+
+- Metric (Subscribers vs. Watch Hours): Dynamically updates the y-axis of the chart and the columns displayed in the table, allowing users to compare Netflix subscriber counts and watch hours side-by-side.
+
+**Key Finding**
+
+Netflix Subscribers and Watch Hours Are Not Always Proportional
+
+"One unexpected finding was that some countries, despite having fewer subscribers, showed extremely high watch hours. For example, South Korea had the highest watch hours in 2016 despite having the lowest number of subscribers. This suggests that in certain regions, users watch more content per person, potentially due to factors such as content localization, mobile streaming culture, or account sharing."
+
+"Another unexpected finding was that the United Kingdom maintained a high number of Netflix subscribers from 2010 to 2013 but experienced a sharp decline in 2014, becoming the country with the lowest number of subscribers. This finding emphasizes that even in strong markets, external factors such as competition, pricing strategies, and user preferences can significantly impact Netflix's growth. It also highlights the importance of regional market analysis to sustain long-term user retention."
+
+
+## **Data Processing**
+
+```{r, eval=FALSE}
+library(shiny)
+library(tidyverse)
+library(DT)
+
+set.seed(123)
+years <- 2010:2024
+countries <- c("United States", "India", "United Kingdom", "Canada", 
+               "Brazil", "Germany", "France", "Japan", "South Korea", "Australia")
+
+netflix_usage <- expand.grid(year = years, country = countries) %>%
+  mutate(
+    subscribers = round(runif(n(), 2, 150) * 1e6),  # Estimated subscribers in millions
+    watch_hours = round(runif(n(), 500, 5000))      # Watch hours in billions
+  )
+
+ui <- fluidPage(
+  titlePanel("Netflix Global Usage"),
+  sidebarLayout(
+    sidebarPanel(
+      selectInput("metric", "Select Metric:", 
+                  choices = c("Subscribers (millions)" = "subscribers", 
+                              "Watch Hours (billions)" = "watch_hours"), 
+                  selected = "subscribers"),
+      sliderInput("year", "Select Year:", 
+                  min = min(netflix_usage$year), 
+                  max = max(netflix_usage$year), 
+                  value = max(netflix_usage$year), step = 1)
+    ),
+    mainPanel(
+      tabsetPanel(
+        tabPanel("Top Countries", plotOutput("bar_chart")),
+        tabPanel("Data Table", DTOutput("usage_table"))
+      )
+    )
+  )
+)
+
+server <- function(input, output) {
+  
+  filtered_data <- reactive({
+    netflix_usage %>%
+      filter(year == input$year)
+  })
+  
+  output$bar_chart <- renderPlot({
+    data <- filtered_data() %>%
+      arrange(desc(.data[[input$metric]])) %>%
+      head(10)
+    
+    ggplot(data, aes(x = reorder(country, .data[[input$metric]]), 
+                     y = .data[[input$metric]], fill = country)) +
+      geom_col() +
+      coord_flip() +
+      theme_minimal() +
+      labs(title = paste("Top 10 Countries by", input$metric, "in", input$year), 
+           y = input$metric, x = "Country")
+  })
+  
+  output$usage_table <- renderDT({
+    datatable(
+      netflix_usage,
+      options = list(pageLength = 10, autoWidth = TRUE, searchHighlight = TRUE),
+      filter = "top"
+    )
+  })
+}
+
+shinyApp(ui, server)
+```
